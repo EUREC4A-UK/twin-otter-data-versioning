@@ -41,6 +41,7 @@ def main(source_dir, version, instrument, changelog, dry_run):
     for filepath in files:
         print(f"{filepath.name}:")
         r = parse.parse(DATAFILE_FORMAT[instrument], filepath.name)
+
         ds = xr.open_dataset(filepath, decode_times=False)
 
         nc_rev = ds.attrs['Revision']
@@ -52,19 +53,18 @@ def main(source_dir, version, instrument, changelog, dry_run):
         print(f"  new version: {version_id}")
 
         if instrument == 'MASIN':
-            # correct o follow EUREC4A time reference
             time_units = ds.Time.attrs['units']
-            nc_tref = cfunits.Units(time_units).reftime
-            t_offset = EUREC4A_REF_TIME - nc_tref
-            if dry_run:
-                print(f"  would adjust reference time to 2020-01-01 00:00:00, by {t_offset} ({t_offset.total_seconds()}s)")
-                print(f"  current time units: {time_units}")
+            # correct o follow EUREC4A time reference
+            if "milliseconds" in time_units:
+                # do nothing, can't count milliseconds as 32bit ints from
+                # 2020-01-01 because we overflow on 2020-01-25
+                pass
             else:
-                if "milliseconds" in time_units:
-                    ds.Time.values -= 1000*int(t_offset.total_seconds())
-                    ds.Time.attrs['units'] = EUREC4A_REF_TIME.strftime(
-                        'milliseconds since %Y-%m-%d %H:%M:%S +0000 UTC'
-                    )
+                nc_tref = cfunits.Units(time_units).reftime
+                t_offset = EUREC4A_REF_TIME - nc_tref
+                if dry_run:
+                    print(f"  would adjust reference time to 2020-01-01 00:00:00, by {t_offset} ({t_offset.total_seconds()}s)")
+                    print(f"  current time units: {time_units}")
                 else:
                     ds.Time.values -= int(t_offset.total_seconds())
                     ds.Time.attrs['units'] = EUREC4A_REF_TIME.strftime(
@@ -81,7 +81,7 @@ def main(source_dir, version, instrument, changelog, dry_run):
             else:
                 ds.attrs['version'] = version_id
                 ds.attrs['history'] = history_s
-                ds.attrs['contact'] = "Tom Lachlan-Cope <tlc@bas.ac.uk>"
+                ds.attrs['contact'] = "Tom Lachlan-Cope <tlc@bas.ac.uk>, Leif Denby <l.c.denby@leeds.ac.uk>"
                 ds.attrs['acknowledgement'] = "TO NOT USE FOR PUBLICATION! EARLY-RELEASE DATA"
                 del ds.attrs['Revision']
 
